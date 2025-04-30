@@ -292,6 +292,12 @@ static const SmbusCmdDef smbus_test_write_block_cmd_def = {
 	.expected_blocksize_w = 4,
 	.handler = {.rcv_handler = &BlockWriteTest}};
 
+static const SmbusCmdDef smbus_debug_data_cmd_def = {
+	.pec = 1U,
+	.trans_type = kSmbusTransBlockWrite,
+	.expected_blocksize_w = 5,
+	.handler = {.rcv_handler = &Dm2CmDebugDataHandler}};
+
 static const SmbusConfig smbus_config = {
 	.cmd_defs = {[CMFW_SMBUS_REQ] = &smbus_req_cmd_def,
 		     [CMFW_SMBUS_ACK] = &smbus_ack_cmd_def,
@@ -316,7 +322,10 @@ static const SmbusConfig smbus_config = {
 		     [CMFW_SMBUS_TEST_READ_BLOCK] = &smbus_test_read_block_cmd_def,
 		     [CMFW_SMBUS_TEST_WRITE_BLOCK] = &smbus_test_write_block_cmd_def,
 		     [CMFW_SMBUS_TEST_WRITE_BLOCK_READ_BLOCK] =
-			     &smbus_block_write_block_read_test}};
+			     &smbus_block_write_block_read_test,
+		     [CMFW_SMBUS_DEBUG_DATA] = &smbus_debug_data_cmd_def,
+	}
+};
 
 static const SmbusCmdDef *GetCmdDef(uint8_t cmd)
 {

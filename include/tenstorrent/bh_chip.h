@@ -150,6 +150,7 @@ cm2dmMessageRet bh_chip_get_cm2dm_message(struct bh_chip *chip);
 int bh_chip_set_static_info(struct bh_chip *chip, dmStaticInfo *info);
 int bh_chip_set_input_power(struct bh_chip *chip, uint16_t power);
 int bh_chip_set_input_power_lim(struct bh_chip *chip, uint16_t max_power);
+int bh_chip_debug_data(struct bh_chip *chip, uint8_t scratch_index, uint32_t data);
 int bh_chip_set_fan_rpm(struct bh_chip *chip, uint16_t rpm);
 int bh_chip_set_therm_trip_count(struct bh_chip *chip, uint16_t therm_trip_count);
 
