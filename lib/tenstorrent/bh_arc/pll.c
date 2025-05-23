@@ -6,6 +6,7 @@
 
 #include "pll.h"
 #include "reg.h"
+#include "status_reg.h"
 #include "timer.h"
 
 #include <stdbool.h>
@@ -574,6 +575,7 @@ int SetGddrMemClk(uint32_t gddr_mem_clk_mhz)
 /* use fbdiv is enabled */
 void SetAICLK(uint32_t aiclk_in_mhz)
 {
+	WriteReg(RESET_UNIT_SCRATCH_RAM_REG_ADDR(61), aiclk_in_mhz);
 	/* calculate target FBDIV and actual aiclk */
 	uint32_t target_fbdiv =
 		(aiclk_in_mhz * 4) / REFCLK_F_MHZ; /* refdiv is 2, external postdiv is 1 */

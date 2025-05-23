@@ -7,6 +7,8 @@
 #include "avs.h"
 #include "telemetry_internal.h"
 #include "regulator.h"
+#include "reg.h"
+#include "status_reg.h"
 
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/sensor.h>
@@ -53,6 +55,7 @@ void ReadTelemetryInternal(int64_t max_staleness, TelemetryInternalData *data)
 		internal_data.vcore_power =
 			internal_data.vcore_current * internal_data.vcore_voltage * 0.001f;
 		internal_data.asic_temperature = avg_tmp;
+		WriteReg(RESET_UNIT_SCRATCH_RAM_REG_ADDR(58), internal_data.asic_temperature);
 
 		/* reftime was updated to the current uptime by the k_uptime_delta() call */
 		last_update_time = reftime;
