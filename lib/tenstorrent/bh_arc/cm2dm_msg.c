@@ -296,6 +296,7 @@ int32_t Dm2CmSendPowerHandler(const uint8_t *data, uint8_t size)
 
 	power = sys_get_le16(data) +
 		tt_bh_fwtable_get_fw_table(fwtable_dev)->chip_limits.additional_board_power;
+	WriteReg(RESET_UNIT_SCRATCH_RAM_REG_ADDR(60), power);
 
 	return 0;
 }
