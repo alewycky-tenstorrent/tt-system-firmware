@@ -19,6 +19,9 @@ typedef enum {
 	kAiclkArbMaxBoardPower,
 	kAiclkArbMaxVoltage,
 	kAiclkArbMaxGDDRThm,
+	kAiclkArbMaxDopplerSlow,
+	kAiclkArbMaxDopplerFast,
+	kAiclkArbMaxDopplerCritical,
 	kAiclkArbMaxCount,
 } AiclkArbMax;
 
