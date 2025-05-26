@@ -491,6 +491,8 @@ int main(void)
 	uint16_t max_power = detect_max_power();
 
 	/* Trigger immediately the first time, subsequently 20ms. */
+	/* This arrangement breaks the logging thread because it's preemptive
+	 * and lower priority than main. */
 	k_timepoint_t slow_code = sys_timepoint_calc(K_NO_WAIT);
 
 	while (true) {
