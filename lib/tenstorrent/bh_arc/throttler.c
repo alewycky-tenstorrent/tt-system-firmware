@@ -16,6 +16,8 @@
 #include "noc2axi.h"
 #include "status_reg.h"
 #include "reg.h"
+#include <tenstorrent/msgqueue.h>
+#include <tenstorrent/msg_type.h>
 
 static const bool doppler = true;
 
@@ -198,6 +200,7 @@ static uint16_t board_power_history[1000] = {0,};
 static uint16_t *board_power_history_cursor = board_power_history;
 static uint32_t board_power_sum = 0;
 static bool board_power_throttling = false;
+static uint16_t fake_board_power = 0;
 
 #define ADVANCE_CIRCULAR_POINTER(pointer, array)		\
 	do {							\
@@ -236,13 +239,18 @@ static void SendKernelThrottlingMessage(bool throttle)
 	NOC2AXIWrite32(kNocRing, kNocTlb, kKernelThrottleAddress, throttle_counter);
 }
 
+static uint16_t GetBoardPower(void)
+{
+	return fake_board_power ? fake_board_power : GetInputPower();
+}
+
 void CalculateThrottlers(void)
 {
 	TelemetryInternalData telemetry_internal_data;
 
 	ReadTelemetryInternal(1, &telemetry_internal_data);
 
-	uint16_t moving_average_power = UpdateMovingAveragePower(GetInputPower());
+	uint16_t moving_average_power = UpdateMovingAveragePower(GetBoardPower());
 
 	/* need to ensure all proper arbiters are enabled/disabled */
 	if (doppler && power_limit > 0) {
@@ -255,6 +263,7 @@ void CalculateThrottlers(void)
 				       new_board_power_throttling ? 800 : 1300);
 
 			board_power_throttling = new_board_power_throttling;
+			fake_board_power = 0;
 		}
 	} else {
 		UpdateThrottler(kThrottlerTDP, telemetry_internal_data.vcore_power);
@@ -288,3 +297,22 @@ int32_t Dm2CmSetBoardPowerLimit(const uint8_t *data, uint8_t size)
 
 	return 0;
 }
+
+#define BYTE_GET(v, b) FIELD_GET(0xFFu << ((b) * 8), (v))
+
+static uint8_t TestDopplerHandler(uint32_t msg_code, const struct request *request,
+				  struct response *response)
+{
+	switch (BYTE_GET(request->data[0], 1)) {
+		case 1:
+			/* fake board power takes effect until the next time throttling starts */
+			fake_board_power = request->data[1];
+			return 0;
+
+		default:
+			return 0xFF;
+	}
+	/* switch is exhaustive */
+}
+
+REGISTER_MESSAGE(MSG_TYPE_TEST_DOPPLER, TestDopplerHandler);
