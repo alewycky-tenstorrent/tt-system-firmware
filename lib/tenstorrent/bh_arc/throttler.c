@@ -208,6 +208,17 @@ void InitThrottlers(void)
 			  tt_bh_fwtable_get_fw_table(fwtable_dev)->chip_limits.gddr_thm_limit);
 
 	InitKernelThrottling();
+
+	SetAiclkArbMax(kAiclkArbMaxAverageBoardPower, aiclk_ppm.fmin);
+	EnableArbMax(kAiclkArbMaxAverageBoardPower, false); /* enabled when limit triggered */
+
+	EnableArbMax(throttler[kThrottlerTDP].arb_max,     !doppler);
+	EnableArbMax(throttler[kThrottlerFastTDC].arb_max, !doppler);
+	EnableArbMax(throttler[kThrottlerTDC].arb_max,     !doppler);
+
+	EnableArbMax(throttler[kThrottlerThm].arb_max,        true);
+	EnableArbMax(throttler[kThrottlerGDDRThm].arb_max,    true);
+	EnableArbMax(throttler[kThrottlerBoardPower].arb_max, true);
 }
 
 static void UpdateThrottler(ThrottlerId id, float value)
@@ -267,15 +278,13 @@ void CalculateThrottlers(void)
 
 	uint16_t moving_average_power = UpdateMovingAveragePower(GetBoardPower());
 
-	/* need to ensure all proper arbiters are enabled/disabled */
 	if (doppler && power_limit > 0) {
 		bool new_board_power_throttling = (moving_average_power >= power_limit);
 
 		if (new_board_power_throttling != board_power_throttling) {
 			SendKernelThrottlingMessage(new_board_power_throttling);
 
-			SetAiclkArbMax(kAiclkArbMaxAverageBoardPower,
-				       new_board_power_throttling ? 800 : 1300);
+			EnableArbMax(kAiclkArbMaxAverageBoardPower, new_board_power_throttling);
 
 			board_power_throttling = new_board_power_throttling;
 			fake_board_power = 0;
@@ -284,9 +293,9 @@ void CalculateThrottlers(void)
 		UpdateThrottler(kThrottlerTDP, telemetry_internal_data.vcore_power);
 		UpdateThrottler(kThrottlerFastTDC, telemetry_internal_data.vcore_current);
 		UpdateThrottler(kThrottlerTDC, telemetry_internal_data.vcore_current);
-		UpdateThrottler(kThrottlerBoardPower, GetInputPower());
 	}
 
+	UpdateThrottler(kThrottlerBoardPower, GetBoardPower());
 	UpdateThrottler(kThrottlerThm, telemetry_internal_data.asic_temperature);
 	UpdateThrottler(kThrottlerGDDRThm, GetMaxGDDRTemp());
 
