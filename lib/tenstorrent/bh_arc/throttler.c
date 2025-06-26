@@ -160,6 +160,39 @@ static void SetThrottlerLimit(ThrottlerId id, float limit)
 	throttler[id].limit = clamped_limit;
 }
 
+static uint32_t throttle_counter;
+static const uint32_t kKernelThrottleAddress = 0x10;
+
+static void InitKernelThrottling()
+{
+	const uint8_t kNocRing = 0;
+	const uint8_t kNocTlb = 1; /* should reserve and pre-program a TLB for this */
+
+	throttle_counter = 0;
+
+	/* should reserve a TLB for this */
+	NOC2AXITensixBroadcastTlbSetup(kNocRing, kNocTlb, kKernelThrottleAddress, kNoc2AxiOrderingStrict);
+	NOC2AXIWrite32(kNocRing, kNocTlb, kKernelThrottleAddress, throttle_counter);
+}
+
+/* must only be called when throttle state changes */
+static void SendKernelThrottlingMessage(bool throttle)
+{
+	const uint8_t kNocRing = 0;
+	const uint8_t kNocTlb = 1; /* should reserve and pre-program a TLB for this */
+
+	/* The LLK uses fast = even, slow = odd, but for debug purposes, they'd like to
+	 * know how many times throttling has happened. Just in case CMFW somehow gets
+	 * out of sync internally, double-check the parity. */
+	throttle_counter++;
+	if ((throttle_counter & 1) != throttle)
+		throttle_counter++;
+
+	/* should reserve a TLB for this */
+	NOC2AXITensixBroadcastTlbSetup(kNocRing, kNocTlb, kKernelThrottleAddress, kNoc2AxiOrderingStrict);
+	NOC2AXIWrite32(kNocRing, kNocTlb, kKernelThrottleAddress, throttle_counter);
+}
+
 void InitThrottlers(void)
 {
 	SetThrottlerLimit(kThrottlerTDP,
@@ -173,6 +206,8 @@ void InitThrottlers(void)
 	SetThrottlerLimit(kThrottlerBoardPower, DEFAULT_BOARD_POWER_LIMIT);
 	SetThrottlerLimit(kThrottlerGDDRThm,
 			  tt_bh_fwtable_get_fw_table(fwtable_dev)->chip_limits.gddr_thm_limit);
+
+	InitKernelThrottling();
 }
 
 static void UpdateThrottler(ThrottlerId id, float value)
@@ -217,26 +252,6 @@ static uint16_t UpdateMovingAveragePower(uint16_t current_power)
 	ADVANCE_CIRCULAR_POINTER(board_power_history_cursor, board_power_history);
 
 	return board_power_sum / ARRAY_SIZE(board_power_history);
-}
-
-/* must only be called when throttle state changes */
-static void SendKernelThrottlingMessage(bool throttle)
-{
-	const uint8_t kNocRing = 0;
-	const uint8_t kNocTlb = 1; /* should reserve and pre-program a TLB for this */
-	const uint32_t kKernelThrottleAddress = 0x10;
-
-	/* The LLK uses fast = even, slow = odd, but for debug purposes, they'd like to
-	 * know how many times throttling has happened. Just in case CMFW somehow gets
-	 * out of sync internally, double-check the parity. */
-	static uint32_t throttle_counter = 0;
-	throttle_counter++;
-	if ((throttle_counter & 1) != throttle)
-		throttle_counter++;
-
-	/* should reserve a TLB for this */
-	NOC2AXITensixBroadcastTlbSetup(kNocRing, kNocTlb, kKernelThrottleAddress, kNoc2AxiOrderingStrict);
-	NOC2AXIWrite32(kNocRing, kNocTlb, kKernelThrottleAddress, throttle_counter);
 }
 
 static uint16_t GetBoardPower(void)
