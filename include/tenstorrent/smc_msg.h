@@ -54,6 +54,8 @@ enum tt_smc_msg {
 	TT_SMC_MSG_FORCE_AICLK = 0x33,
 	TT_SMC_MSG_GET_AICLK = 0x34,
 	TT_SMC_MSG_FORCE_VDD = 0x39,
+	/** @brief Override DVFS throttler parameters. */
+	TT_SMC_MSG_MODIFY_THROTTLER = 0x40,
 	/** @brief PCIe index request (not supported) */
 	TT_SMC_MSG_PCIE_INDEX = 0x51,
 	/** @brief @ref aiclk_set_speed_rqst "AI Clock Set Busy Speed Request"*/

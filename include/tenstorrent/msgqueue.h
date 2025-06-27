@@ -118,6 +118,21 @@ struct power_setting_rqst {
 	} power_settings_array;
 };
 
+/** @brief Host request to adjust the AICLK speed
+ * @details Requests of this type are processed by @ref aiclk_busy_handler
+ */
+struct modify_throttler_rqst {
+	/** @brief The command code corresponding TT_SMC_MSG_MODIFY_THROTTLER */
+	uint8_t command_code;
+	uint8_t throttler_id;
+	uint8_t pad[2];
+
+	float p_gain;
+	float d_gain;
+	float alpha_factor;
+	float limit;
+};
+
 /** @brief A tenstorrent host request*/
 union request {
 	/** @brief The interpretation of the request as an array of uint32_t entries*/
@@ -136,6 +151,9 @@ union request {
 
 	/** @brief A power setting request*/
 	struct power_setting_rqst power_setting;
+
+	/** @brief A throttler parameter modification request */
+	struct modify_throttler_rqst modify_throttler;
 };
 
 /** @} */
