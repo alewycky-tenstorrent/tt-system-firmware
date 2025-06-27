@@ -208,6 +208,25 @@ struct get_voltage_curve_from_freq_rqst {
 
 	/** @brief The input frequency in MHz */
 	uint32_t input_freq_mhz;
+
+/** @brief Host request to modify throttler parameters
+ * @details Requests of this type are processed by @ref ModifyThrottlerHandler
+ */
+struct modify_throttler_rqst {
+	/** @brief The command code corresponding TT_SMC_MSG_MODIFY_THROTTLER */
+	uint8_t command_code;
+	/** @brief Throttler index, from enum ThrottlerId */
+	uint8_t throttler_id;
+	uint8_t pad[2];
+
+	/** @brief Proportional gain */
+	float p_gain;
+	/** @brief Derivative gain */
+	float d_gain;
+	/** @brief Alpha factor */
+	float alpha_factor;
+	/** @brief Throttler trigger point */
+	float limit;
 };
 
 /** @brief A tenstorrent host request*/
@@ -246,6 +265,9 @@ union request {
 
 	/** @brief A get voltage curve from frequency request */
 	struct get_voltage_curve_from_freq_rqst get_voltage_curve_from_freq;
+
+	/** @brief A throttler parameter modification request */
+	struct modify_throttler_rqst modify_throttler;
 };
 
 /** @} */
