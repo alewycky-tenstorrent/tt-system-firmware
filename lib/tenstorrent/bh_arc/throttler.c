@@ -20,6 +20,7 @@
 #include <tenstorrent/msg_type.h>
 
 static const bool doppler = true;
+static const bool fast_power_test_mode = true;
 
 static uint32_t power_limit;
 
@@ -284,7 +285,8 @@ void CalculateThrottlers(void)
 		if (new_board_power_throttling != board_power_throttling) {
 			SendKernelThrottlingMessage(new_board_power_throttling);
 
-			EnableArbMax(kAiclkArbMaxAverageBoardPower, new_board_power_throttling);
+			EnableArbMax(kAiclkArbMaxAverageBoardPower,
+				     new_board_power_throttling && !fast_power_test_mode);
 
 			board_power_throttling = new_board_power_throttling;
 			fake_board_power = 0;
