@@ -82,7 +82,7 @@ typedef struct {
 typedef struct {
 	const AiclkArbMax arb_max; /* The arbiter associated with this throttler */
 
-	const ThrottlerParams params;
+	ThrottlerParams params;
 	float limit;
 	float value;
 	float error;
@@ -340,3 +340,23 @@ static uint8_t TestDopplerHandler(uint32_t msg_code, const struct request *reque
 }
 
 REGISTER_MESSAGE(MSG_TYPE_TEST_DOPPLER, TestDopplerHandler);
+
+static uint8_t ModifyThrottlerHandler(uint32_t msg_code, const struct request *request, struct response *response)
+{
+	uint8_t id = BYTE_GET(request->data[0], 1);
+	if (id >= kThrottlerCount) {
+		return 0xFF;
+	}
+
+	float p = *(const float*)&request->data[1];
+	float d = *(const float*)&request->data[2];
+	float alpha = *(const float*)&request->data[3];
+
+	throttler[id].params.p_gain = p;
+	throttler[id].params.d_gain = d;
+	throttler[id].params.alpha_filter = alpha;
+
+	return 0;
+}
+
+REGISTER_MESSAGE(MSG_TYPE_MODIFY_THROTTLER, ModifyThrottlerHandler);
