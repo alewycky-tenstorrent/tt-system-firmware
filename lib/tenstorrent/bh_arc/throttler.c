@@ -20,7 +20,7 @@
 #include <tenstorrent/msg_type.h>
 
 static const bool doppler = true;
-static const bool fast_power_test_mode = true;
+static const bool fast_power_test_mode = false;
 
 static uint32_t power_limit;
 
