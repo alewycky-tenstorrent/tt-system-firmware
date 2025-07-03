@@ -210,14 +210,14 @@ void InitThrottlers(void)
 
 	InitKernelThrottling();
 
-	SetAiclkArbMax(kAiclkArbMaxAverageBoardPower, aiclk_ppm.fmin);
-	EnableArbMax(kAiclkArbMaxAverageBoardPower, false); /* enabled when limit triggered */
+	SetAiclkArbMax(kAiclkArbMaxDoppler, aiclk_ppm.fmin);
+	EnableArbMax(kAiclkArbMaxDoppler, false); /* enabled when limit triggered */
 
 	EnableArbMax(throttler[kThrottlerTDP].arb_max,     !doppler);
 	EnableArbMax(throttler[kThrottlerFastTDC].arb_max, !doppler);
 	EnableArbMax(throttler[kThrottlerTDC].arb_max,     !doppler);
+	EnableArbMax(throttler[kThrottlerThm].arb_max,     !doppler);
 
-	EnableArbMax(throttler[kThrottlerThm].arb_max,        true);
 	EnableArbMax(throttler[kThrottlerGDDRThm].arb_max,    true);
 	EnableArbMax(throttler[kThrottlerBoardPower].arb_max, true);
 }
@@ -249,6 +249,10 @@ static uint32_t board_power_sum = 0;
 static bool board_power_throttling = false;
 static uint16_t fake_board_power = 0;
 
+static uint32_t samples_above_tdp = 0;
+static const uint8_t overdrive_threshold = 8;
+static bool overdrive = false;
+
 #define ADVANCE_CIRCULAR_POINTER(pointer, array)		\
 	do {							\
 		if (++(pointer) == (array) + ARRAY_SIZE(array))	\
@@ -277,15 +281,29 @@ void CalculateThrottlers(void)
 
 	ReadTelemetryInternal(1, &telemetry_internal_data);
 
+	samples_above_tdp <<= 1;
+	samples_above_tdp |= (telemetry_internal_data.vcore_power > throttler[kThrottlerTDP].limit);
+
+	unsigned recent_samples_above_tdp = POPCOUNT(samples_above_tdp & BIT_MASK(10));
+	if (recent_samples_above_tdp >= overdrive_threshold) {
+		overdrive = true;
+	} else if (recent_samples_above_tdp == 0) {
+		overdrive = false;
+	}
+
+	EnableArbMax(throttler[kThrottlerBoardPower].arb_max, !overdrive);
+
 	uint16_t moving_average_power = UpdateMovingAveragePower(GetBoardPower());
 
 	if (doppler && power_limit > 0) {
-		bool new_board_power_throttling = (moving_average_power >= power_limit);
+		bool new_board_power_throttling
+			= (moving_average_power >= power_limit)
+			|| (overdrive && telemetry_internal_data.asic_temperature > throttler[kThrottlerThm].limit);
 
 		if (new_board_power_throttling != board_power_throttling) {
 			SendKernelThrottlingMessage(new_board_power_throttling);
 
-			EnableArbMax(kAiclkArbMaxAverageBoardPower,
+			EnableArbMax(kAiclkArbMaxDoppler,
 				     new_board_power_throttling && !fast_power_test_mode);
 
 			board_power_throttling = new_board_power_throttling;
