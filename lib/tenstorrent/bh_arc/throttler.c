@@ -248,9 +248,10 @@ static uint16_t *board_power_history_cursor = board_power_history;
 static uint32_t board_power_sum = 0;
 static bool board_power_throttling = false;
 static uint16_t fake_board_power = 0;
+static uint16_t previous_power = 0;
 
-static uint32_t samples_above_tdp = 0;
-static const uint8_t overdrive_threshold = 8;
+static uint32_t samples_above_tdp = 0; /* 1 bit per sample, LSB is most recent */
+static const uint8_t overdrive_threshold = 8; /* 8 of 10 > TDP triggers overdrive */
 static bool overdrive = false;
 
 #define ADVANCE_CIRCULAR_POINTER(pointer, array)		\
@@ -275,14 +276,10 @@ static uint16_t GetBoardPower(void)
 	return fake_board_power ? fake_board_power : GetInputPower();
 }
 
-void CalculateThrottlers(void)
+static void UpdateDopplerOverdrive(const TelemetryInternalData *telemetry)
 {
-	TelemetryInternalData telemetry_internal_data;
-
-	ReadTelemetryInternal(1, &telemetry_internal_data);
-
 	samples_above_tdp <<= 1;
-	samples_above_tdp |= (telemetry_internal_data.vcore_power > throttler[kThrottlerTDP].limit);
+	samples_above_tdp |= (telemetry->vcore_power > throttler[kThrottlerTDP].limit);
 
 	unsigned recent_samples_above_tdp = POPCOUNT(samples_above_tdp & BIT_MASK(10));
 	if (recent_samples_above_tdp >= overdrive_threshold) {
@@ -290,31 +287,61 @@ void CalculateThrottlers(void)
 	} else if (recent_samples_above_tdp == 0) {
 		overdrive = false;
 	}
+}
 
-	EnableArbMax(throttler[kThrottlerBoardPower].arb_max, !overdrive);
+static bool UpdateDoppler(const TelemetryInternalData *telemetry)
+{
+	if (!doppler || power_limit == 0) {
+		return false;
+	}
 
-	uint16_t moving_average_power = UpdateMovingAveragePower(GetBoardPower());
+	UpdateDopplerOverdrive(telemetry);
 
-	if (doppler && power_limit > 0) {
-		bool new_board_power_throttling
-			= (moving_average_power >= power_limit)
-			|| (overdrive && telemetry_internal_data.asic_temperature > throttler[kThrottlerThm].limit);
+	uint16_t current_power = GetBoardPower();
 
-		if (new_board_power_throttling != board_power_throttling) {
-			SendKernelThrottlingMessage(new_board_power_throttling);
+	/* Over 2ms, limit board power to 2.25X board TDP. 2.25X is the 3ms limit, but we apply it
+	 * after 2ms assuming that CMFW is lagging behind.
+	 * (current_power + previous_power) / 2 >= 2.25 * power_limit
+	 * current_power + previous_power >= 4.5 * power_limit
+	 */
+	bool short_term_limit = (current_power + previous_power >= 4 * power_limit + power_limit / 2);
 
-			EnableArbMax(kAiclkArbMaxDoppler,
-				     new_board_power_throttling && !fast_power_test_mode);
+	uint16_t moving_average_power = UpdateMovingAveragePower(current_power);
+	bool long_term_limit = (moving_average_power >= power_limit);
 
-			board_power_throttling = new_board_power_throttling;
-			fake_board_power = 0;
-		}
-	} else {
+	bool overdrive_temp_limit = (telemetry->asic_temperature > throttler[kThrottlerThm].limit);
+
+	bool new_board_power_throttling
+		= short_term_limit || long_term_limit || overdrive_temp_limit;
+
+	if (new_board_power_throttling != board_power_throttling) {
+		SendKernelThrottlingMessage(new_board_power_throttling);
+
+		EnableArbMax(kAiclkArbMaxDoppler,
+			     new_board_power_throttling && !fast_power_test_mode);
+
+		board_power_throttling = new_board_power_throttling;
+		fake_board_power = 0;
+	}
+
+	previous_power = current_power;
+
+	return true;
+}
+
+void CalculateThrottlers(void)
+{
+	TelemetryInternalData telemetry_internal_data;
+
+	ReadTelemetryInternal(1, &telemetry_internal_data);
+
+	if (!UpdateDoppler(&telemetry_internal_data)) {
 		UpdateThrottler(kThrottlerTDP, telemetry_internal_data.vcore_power);
 		UpdateThrottler(kThrottlerFastTDC, telemetry_internal_data.vcore_current);
 		UpdateThrottler(kThrottlerTDC, telemetry_internal_data.vcore_current);
 	}
 
+	EnableArbMax(throttler[kThrottlerBoardPower].arb_max, !overdrive);
 	UpdateThrottler(kThrottlerBoardPower, GetBoardPower());
 	UpdateThrottler(kThrottlerThm, telemetry_internal_data.asic_temperature);
 	UpdateThrottler(kThrottlerGDDRThm, GetMaxGDDRTemp());
