@@ -210,7 +210,7 @@ void InitThrottlers(void)
 
 	InitKernelThrottling();
 
-	SetAiclkArbMax(kAiclkArbMaxDoppler, aiclk_ppm.fmin);
+	SetAiclkArbMax(kAiclkArbMaxDoppler, GetAiclkFmin());
 	EnableArbMax(kAiclkArbMaxDoppler, false); /* enabled when limit triggered */
 
 	EnableArbMax(throttler[kThrottlerTDP].arb_max,     !doppler);
