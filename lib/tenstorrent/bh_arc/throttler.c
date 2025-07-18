@@ -20,7 +20,9 @@
 #include <tenstorrent/msg_type.h>
 
 static const bool doppler = true;
-static const bool fast_power_test_mode = false;
+static const bool enable_short_term_limit = true;
+static const bool enable_long_term_limit = false;
+static const bool enable_overdrive_temp_limit = false;
 
 static uint32_t power_limit;
 
@@ -305,11 +307,14 @@ static bool UpdateDoppler(const TelemetryInternalData *telemetry)
 	 * current_power + previous_power >= 4.5 * power_limit
 	 */
 	bool short_term_limit = (current_power + previous_power >= 4 * power_limit + power_limit / 2);
+	short_term_limit &= enable_short_term_limit;
 
 	uint16_t moving_average_power = UpdateMovingAveragePower(current_power);
 	bool long_term_limit = (moving_average_power >= power_limit);
+	long_term_limit &= enable_long_term_limit;
 
 	bool overdrive_temp_limit = (telemetry->asic_temperature > throttler[kThrottlerThm].limit);
+	overdrive_temp_limit &= enable_overdrive_temp_limit;
 
 	bool new_board_power_throttling
 		= short_term_limit || long_term_limit || overdrive_temp_limit;
@@ -317,8 +322,7 @@ static bool UpdateDoppler(const TelemetryInternalData *telemetry)
 	if (new_board_power_throttling != board_power_throttling) {
 		SendKernelThrottlingMessage(new_board_power_throttling);
 
-		EnableArbMax(kAiclkArbMaxDoppler,
-			     new_board_power_throttling && !fast_power_test_mode);
+		EnableArbMax(kAiclkArbMaxDoppler, new_board_power_throttling);
 
 		board_power_throttling = new_board_power_throttling;
 		fake_board_power = 0;
