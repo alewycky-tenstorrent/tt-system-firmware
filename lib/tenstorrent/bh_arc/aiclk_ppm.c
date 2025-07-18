@@ -235,6 +235,11 @@ uint32_t GetAiclkTarg(void)
 	return aiclk_ppm.targ_freq;
 }
 
+uint32_t GetAiclkFmin(void)
+{
+	return aiclk_ppm.fmin;
+}
+
 static uint8_t AiclkBusyHandler(uint32_t msg_code, const struct request *request,
 				struct response *response)
 {
