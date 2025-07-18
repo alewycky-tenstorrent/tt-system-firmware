@@ -289,6 +289,7 @@ int32_t Dm2CmSendPowerHandler(const uint8_t *data, uint8_t size)
 	}
 
 	power = sys_get_le16(data);
+	WriteReg(RESET_UNIT_SCRATCH_RAM_REG_ADDR(60), power);
 
 	return 0;
 }

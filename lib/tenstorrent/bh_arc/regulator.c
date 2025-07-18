@@ -8,6 +8,7 @@
 #include "dw_apb_i2c.h"
 #include "regulator.h"
 #include "regulator_config.h"
+#include "reg.h"
 #include "status_reg.h"
 #include "timer.h"
 
@@ -159,6 +160,7 @@ static float i2c_get_max20816(uint32_t slave_addr)
 
 void set_vcore(uint32_t voltage_in_mv)
 {
+	WriteReg(RESET_UNIT_SCRATCH_RAM_REG_ADDR(59), voltage_in_mv);
 	if (vout_cmd_source == AVSVoutCommand) {
 		AVSWriteVoltage(voltage_in_mv, AVS_VCORE_RAIL);
 	} else {
