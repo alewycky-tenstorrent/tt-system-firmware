@@ -168,8 +168,8 @@ static Throttler throttler[kThrottlerCount] = {
 		.arb_max = kAiclkArbMaxDopplerSlow,
 		.params = {
 			.alpha_filter = 1.0,
-			.p_gain = 0.2,
-			.d_gain = 0,
+			.p_gain = 0.025,
+			.d_gain = 0.3,
 		},
 	},
 	[kThrottlerDopplerFast] = {
