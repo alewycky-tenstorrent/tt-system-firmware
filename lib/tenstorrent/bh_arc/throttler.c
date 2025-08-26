@@ -334,14 +334,18 @@ static void UpdateDoppler(const TelemetryInternalData *telemetry)
 	UpdateDopplerOverdrive(telemetry);
 
 	uint16_t current_power = GetBoardPower();
+	uint16_t average_power = UpdateMovingAveragePower(current_power);
 
 	UpdateThrottler(kThrottlerDopplerFast, current_power);
-	UpdateThrottler(kThrottlerDopplerSlow, UpdateMovingAveragePower(current_power));
+	UpdateThrottler(kThrottlerDopplerSlow, average_power);
+
+	/* AICLK=Fmin isn't always enough to get below the board power limit. */
+	bool throttle_more = (GetAiclkTarg() == GetAiclkFmin() && current_power > power_limit);
 
 	bool overdrive_temp_limit = (telemetry->asic_temperature > throttler[kThrottlerThm].limit);
 	overdrive_temp_limit &= enable_overdrive_temp_limit;
 
-	bool new_critical_throttling = overdrive_temp_limit;
+	bool new_critical_throttling = overdrive_temp_limit || throttle_more;
 
 	if (new_critical_throttling != critical_throttling) {
 		SendKernelThrottlingMessage(new_critical_throttling);
