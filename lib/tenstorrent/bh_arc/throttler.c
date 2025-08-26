@@ -20,9 +20,9 @@
 #include <tenstorrent/msg_type.h>
 
 static const bool doppler = true;
-static const float excursion_limit = 2.5f;
+static const float excursion_limit = 2.25f; /* 3ms limit */
 static const bool enable_doppler_slow = true && doppler;
-static const bool enable_doppler_fast = false && doppler;
+static const bool enable_doppler_fast = true && doppler;
 static const bool enable_overdrive_temp_limit = false && doppler;
 
 static uint32_t power_limit;
