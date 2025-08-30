@@ -181,8 +181,7 @@ Documentation:
   # Maintainer needed!
   status: odd fixes
   files:
-    - .gitignore
-    # - drivers/i2c/
+    - drivers/i2c/
     # - include/zephyr/drivers/i2c/
     # - dts/bindings/i2c/
     # - tests/drivers/i2c/
@@ -386,8 +385,7 @@ Documentation:
   # Maintainer needed!
   status: odd fixes
   files:
-    - .gitignore
-    # - drivers/smbus/
+    - drivers/smbus/
     # - dts/bindings/smbus/
     # - samples/drivers/smbus/
     # - tests/drivers/smbus/

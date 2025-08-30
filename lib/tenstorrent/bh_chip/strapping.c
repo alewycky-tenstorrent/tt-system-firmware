@@ -11,6 +11,11 @@
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/i2c.h>
 
+struct tt_smbus_stm32_config {
+	const struct pinctrl_dev_config *pcfg;
+	const struct device *i2c_dev;
+};
+
 void bh_chip_set_straps(struct bh_chip *chip)
 {
 	int ret;
