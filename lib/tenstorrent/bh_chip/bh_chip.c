@@ -16,14 +16,14 @@
 
 LOG_MODULE_REGISTER(bh_chip, CONFIG_TT_BH_CHIP_LOG_LEVEL);
 
-void bh_chip_cancel_bus_transfer_set(struct bh_chip *chip)
+void bh_chip_cancel_bus_transfer_set(struct bh_chip *dev)
 {
-	smbus_cancel(chip->config.arc.smbus.bus);
+	dev->data.bus_cancel_flag = 1;
 }
 
-void bh_chip_cancel_bus_transfer_clear(struct bh_chip *chip)
+void bh_chip_cancel_bus_transfer_clear(struct bh_chip *dev)
 {
-	smbus_uncancel(chip->config.arc.smbus.bus);
+	dev->data.bus_cancel_flag = 0;
 }
 
 cm2dmMessageRet bh_chip_get_cm2dm_message(struct bh_chip *chip)
