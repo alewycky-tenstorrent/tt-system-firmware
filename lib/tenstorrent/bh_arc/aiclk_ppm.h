@@ -41,5 +41,6 @@ float GetThrottlerArbMax(AiclkArbMax arb_max);
 uint8_t ForceAiclk(uint32_t freq);
 uint32_t GetAiclkTarg(void);
 uint32_t GetAiclkFmin(void);
+uint32_t GetAiclkFmax(void);
 
 #endif

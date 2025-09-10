@@ -240,6 +240,11 @@ uint32_t GetAiclkFmin(void)
 	return aiclk_ppm.fmin;
 }
 
+uint32_t GetAiclkFmax(void)
+{
+	return aiclk_ppm.fmax;
+}
+
 static uint8_t AiclkBusyHandler(uint32_t msg_code, const struct request *request,
 				struct response *response)
 {
