@@ -22,7 +22,7 @@
 static const bool doppler = true;
 static const float excursion_limit = 2.25f; /* 3ms limit */
 static const bool enable_doppler_slow = true && doppler;
-static const bool enable_doppler_fast = true && doppler;
+static const bool enable_doppler_fast = false && doppler;
 static const bool enable_overdrive_temp_limit = false && doppler;
 
 static uint32_t power_limit;
@@ -284,6 +284,7 @@ static uint16_t *board_power_history_cursor = board_power_history;
 static uint32_t board_power_sum = 0;
 static bool critical_throttling = false;
 static uint16_t fake_board_power = 0;
+static bool kernel_nops_enabled;
 
 static uint32_t samples_above_tdp = 0; /* 1 bit per sample, LSB is most recent */
 static const uint8_t overdrive_threshold = 8; /* 8 of 10 > TDP triggers overdrive */
@@ -340,19 +341,25 @@ static void UpdateDoppler(const TelemetryInternalData *telemetry)
 	UpdateThrottler(kThrottlerDopplerSlow, average_power);
 
 	/* AICLK=Fmin isn't always enough to get below the board power limit. */
-	bool throttle_more = (GetAiclkTarg() == GetAiclkFmin() && current_power > power_limit);
+	bool start_nops = GetAiclkTarg() == GetAiclkFmin() && current_power > power_limit;
+	bool stop_nops = GetAiclkTarg() == GetAiclkFmax() && current_power < power_limit;
 
 	bool overdrive_temp_limit = (telemetry->asic_temperature > throttler[kThrottlerThm].limit);
 	overdrive_temp_limit &= enable_overdrive_temp_limit;
 
-	bool new_critical_throttling = overdrive_temp_limit || throttle_more;
+	bool new_critical_throttling = overdrive_temp_limit;
+
+	bool new_kernel_nops_enabled = ((kernel_nops_enabled || start_nops) && !stop_nops)
+				       || overdrive_temp_limit;
+
+	if (new_kernel_nops_enabled != kernel_nops_enabled) {
+		kernel_nops_enabled = new_kernel_nops_enabled;
+		SendKernelThrottlingMessage(kernel_nops_enabled);
+	}
 
 	if (new_critical_throttling != critical_throttling) {
-		SendKernelThrottlingMessage(new_critical_throttling);
-
-		EnableArbMax(kAiclkArbMaxDopplerCritical, new_critical_throttling);
-
 		critical_throttling = new_critical_throttling;
+		EnableArbMax(kAiclkArbMaxDopplerCritical, critical_throttling);
 		fake_board_power = 0;
 	}
 }
