@@ -38,31 +38,16 @@ typedef struct {
 
 /* This table is used to restrict the throttler limits to reasonable ranges. */
 /* They are passed in from the FW table in SPI */
+/* clang-format off */
 static const ThrottlerLimitRange throttler_limit_ranges[kThrottlerCount] = {
-	[kThrottlerTDP] = {
-			.min = 50,
-			.max = 500,
-		},
-	[kThrottlerFastTDC] = {
-			.min = 50,
-			.max = 500,
-		},
-	[kThrottlerTDC] = {
-			.min = 50,
-			.max = 400,
-		},
-	[kThrottlerThm] = {
-			.min = 50,
-			.max = 100,
-		},
-	[kThrottlerBoardPower] = {
-			.min = 50,
-			.max = 600,
-		},
-	[kThrottlerGDDRThm] = {
-		.min = 50,
-		.max = 100,
-	}};
+	[kThrottlerTDP]       	= { .min = 50, .max = 500, },
+	[kThrottlerFastTDC]   	= { .min = 50, .max = 500, },
+	[kThrottlerTDC]       	= { .min = 50, .max = 400, },
+	[kThrottlerThm]       	= { .min = 50, .max = 100, },
+	[kThrottlerBoardPower]	= { .min = 50, .max = 600, },
+	[kThrottlerGDDRThm]   	= { .min = 50, .max = 100, },
+};
+/* clang-format on */
 
 typedef struct {
 	float alpha_filter;
@@ -82,64 +67,66 @@ typedef struct {
 } Throttler;
 
 static Throttler throttler[kThrottlerCount] = {
-	[kThrottlerTDP] = {
-
+	[kThrottlerTDP] =
+		{
 			.arb_max = kAiclkArbMaxTDP,
-			.params = {
-
+			.params =
+				{
 					.alpha_filter = 1.0,
 					.p_gain = 0.2,
 					.d_gain = 0,
 				},
 		},
-	[kThrottlerFastTDC] = {
-
+	[kThrottlerFastTDC] =
+		{
 			.arb_max = kAiclkArbMaxFastTDC,
-			.params = {
-
+			.params =
+				{
 					.alpha_filter = 1.0,
 					.p_gain = 0.5,
 					.d_gain = 0,
 				},
 		},
-	[kThrottlerTDC] = {
-
+	[kThrottlerTDC] =
+		{
 			.arb_max = kAiclkArbMaxTDC,
-			.params = {
-
+			.params =
+				{
 					.alpha_filter = 0.1,
 					.p_gain = 0.2,
 					.d_gain = 0,
 				},
 		},
-	[kThrottlerThm] = {
-
+	[kThrottlerThm] =
+		{
 			.arb_max = kAiclkArbMaxThm,
-			.params = {
-
+			.params =
+				{
 					.alpha_filter = 1.0,
 					.p_gain = 0.2,
 					.d_gain = 0,
 				},
 		},
-	[kThrottlerBoardPower] = {
+	[kThrottlerBoardPower] =
+		{
 			.arb_max = kAiclkArbMaxBoardPower,
-			.params = {
-
+			.params =
+				{
 					.alpha_filter = 1.0,
 					.p_gain = 0.1,
 					.d_gain = 0.1,
-			}
-	},
-	[kThrottlerGDDRThm] = {
+				},
+		},
+	[kThrottlerGDDRThm] =
+		{
 			.arb_max = kAiclkArbMaxGDDRThm,
-			.params = {
-
+			.params =
+				{
 					.alpha_filter = 1.0,
 					.p_gain = 0.2,
 					.d_gain = 0,
 				},
-	}
+		},
 };
 
 static void SetThrottlerLimit(ThrottlerId id, float limit)
