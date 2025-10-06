@@ -15,8 +15,6 @@
 #include "telemetry.h"
 #include "noc2axi.h"
 
-static const bool doppler = true;
-
 static uint32_t power_limit;
 
 #define kThrottlerAiclkScaleFactor 500.0F
@@ -27,11 +25,7 @@ LOG_MODULE_REGISTER(throttler);
 static const struct device *const fwtable_dev = DEVICE_DT_GET(DT_NODELABEL(fwtable));
 
 typedef enum {
-	kThrottlerTDP,
-	kThrottlerFastTDC,
-	kThrottlerTDC,
 	kThrottlerThm,
-	kThrottlerBoardPower,
 	kThrottlerGDDRThm,
 	kThrottlerDopplerSlow,
 	kThrottlerDopplerFast,
@@ -47,11 +41,7 @@ typedef struct {
 /* They are passed in from the FW table in SPI */
 /* clang-format off */
 static const ThrottlerLimitRange throttler_limit_ranges[kThrottlerCount] = {
-	[kThrottlerTDP]		= { .min = 50, .max = 500, },
-	[kThrottlerFastTDC]	= { .min = 50, .max = 500, },
-	[kThrottlerTDC]		= { .min = 50, .max = 400, },
 	[kThrottlerThm]		= { .min = 50, .max = 100, },
-	[kThrottlerBoardPower]	= { .min = 50, .max = 600, },
 	[kThrottlerGDDRThm]	= { .min = 50, .max = 100, },
 	[kThrottlerDopplerSlow]	= { .min = 50, .max = 1200, },
 	[kThrottlerDopplerFast]	= { .min = 50, .max = 1200, },
@@ -76,36 +66,6 @@ typedef struct {
 } Throttler;
 
 static Throttler throttler[kThrottlerCount] = {
-	[kThrottlerTDP] =
-		{
-			.arb_max = kAiclkArbMaxTDP,
-			.params =
-				{
-					.alpha_filter = 1.0,
-					.p_gain = 0.2,
-					.d_gain = 0,
-				},
-		},
-	[kThrottlerFastTDC] =
-		{
-			.arb_max = kAiclkArbMaxFastTDC,
-			.params =
-				{
-					.alpha_filter = 1.0,
-					.p_gain = 0.5,
-					.d_gain = 0,
-				},
-		},
-	[kThrottlerTDC] =
-		{
-			.arb_max = kAiclkArbMaxTDC,
-			.params =
-				{
-					.alpha_filter = 0.1,
-					.p_gain = 0.2,
-					.d_gain = 0,
-				},
-		},
 	[kThrottlerThm] =
 		{
 			.arb_max = kAiclkArbMaxThm,
@@ -114,16 +74,6 @@ static Throttler throttler[kThrottlerCount] = {
 					.alpha_filter = 1.0,
 					.p_gain = 0.2,
 					.d_gain = 0,
-				},
-		},
-	[kThrottlerBoardPower] =
-		{
-			.arb_max = kAiclkArbMaxBoardPower,
-			.params =
-				{
-					.alpha_filter = 1.0,
-					.p_gain = 0.1,
-					.d_gain = 0.1,
 				},
 		},
 	[kThrottlerGDDRThm] =
@@ -205,15 +155,8 @@ static void SendKernelThrottlingMessage(bool throttle)
 
 void InitThrottlers(void)
 {
-	SetThrottlerLimit(kThrottlerTDP,
-			  tt_bh_fwtable_get_fw_table(fwtable_dev)->chip_limits.tdp_limit);
-	SetThrottlerLimit(kThrottlerFastTDC,
-			  tt_bh_fwtable_get_fw_table(fwtable_dev)->chip_limits.tdc_fast_limit);
-	SetThrottlerLimit(kThrottlerTDC,
-			  tt_bh_fwtable_get_fw_table(fwtable_dev)->chip_limits.tdc_limit);
 	SetThrottlerLimit(kThrottlerThm,
 			  tt_bh_fwtable_get_fw_table(fwtable_dev)->chip_limits.thm_limit);
-	SetThrottlerLimit(kThrottlerBoardPower, DEFAULT_BOARD_POWER_LIMIT);
 	SetThrottlerLimit(kThrottlerGDDRThm,
 			  tt_bh_fwtable_get_fw_table(fwtable_dev)->chip_limits.gddr_thm_limit);
 
@@ -222,16 +165,11 @@ void InitThrottlers(void)
 
 	InitKernelThrottling();
 
-	EnableArbMax(throttler[kThrottlerTDP].arb_max, !doppler);
-	EnableArbMax(throttler[kThrottlerFastTDC].arb_max, !doppler);
-	EnableArbMax(throttler[kThrottlerTDC].arb_max, !doppler);
-	EnableArbMax(throttler[kThrottlerBoardPower].arb_max, !doppler);
-
 	EnableArbMax(throttler[kThrottlerThm].arb_max, true);
 	EnableArbMax(throttler[kThrottlerGDDRThm].arb_max, true);
 
-	EnableArbMax(throttler[kThrottlerDopplerSlow].arb_max, doppler);
-	EnableArbMax(throttler[kThrottlerDopplerFast].arb_max, doppler);
+	EnableArbMax(throttler[kThrottlerDopplerSlow].arb_max, true);
+	EnableArbMax(throttler[kThrottlerDopplerFast].arb_max, true);
 
 	SetAiclkArbMax(kAiclkArbMaxDopplerCritical, GetAiclkFmin());
 	EnableArbMax(kAiclkArbMaxDopplerCritical, false); /* enabled when limit triggered */
@@ -287,8 +225,10 @@ static uint16_t UpdateMovingAveragePower(uint16_t current_power)
 
 static void UpdateDopplerOverdrive(const TelemetryInternalData *telemetry)
 {
+	uint32_t tdp_limit = tt_bh_fwtable_get_fw_table(fwtable_dev)->chip_limits.tdp_limit;
+
 	samples_above_tdp <<= 1;
-	samples_above_tdp |= (telemetry->vcore_power > throttler[kThrottlerTDP].limit);
+	samples_above_tdp |= (telemetry->vcore_power > tdp_limit);
 
 	uint8_t recent_samples_above_tdp =
 		POPCOUNT(samples_above_tdp & BIT_MASK(overdrive_lookback));
@@ -297,11 +237,6 @@ static void UpdateDopplerOverdrive(const TelemetryInternalData *telemetry)
 	} else if (recent_samples_above_tdp == 0) {
 		overdrive = false;
 	}
-}
-
-static bool DopplerActive(void)
-{
-	return doppler && power_limit > 0;
 }
 
 static void UpdateDoppler(const TelemetryInternalData *telemetry)
@@ -320,7 +255,6 @@ static void UpdateDoppler(const TelemetryInternalData *telemetry)
 	bool stop_nops = GetAiclkTarg() == GetAiclkFmax() && current_power < power_limit;
 
 	bool overdrive_temp_limit = (telemetry->asic_temperature > throttler[kThrottlerThm].limit);
-	overdrive_temp_limit &= doppler;
 
 	bool new_critical_throttling = overdrive_temp_limit;
 
@@ -344,16 +278,8 @@ void CalculateThrottlers(void)
 
 	ReadTelemetryInternal(1, &telemetry_internal_data);
 
-	if (DopplerActive()) {
-		UpdateDoppler(&telemetry_internal_data);
-	} else {
-		UpdateThrottler(kThrottlerTDP, telemetry_internal_data.vcore_power);
-		UpdateThrottler(kThrottlerFastTDC, telemetry_internal_data.vcore_current);
-		UpdateThrottler(kThrottlerTDC, telemetry_internal_data.vcore_current);
-	}
+	UpdateDoppler(&telemetry_internal_data);
 
-	EnableArbMax(throttler[kThrottlerBoardPower].arb_max, !overdrive);
-	UpdateThrottler(kThrottlerBoardPower, GetInputPower());
 	UpdateThrottler(kThrottlerThm, telemetry_internal_data.asic_temperature);
 	UpdateThrottler(kThrottlerGDDRThm, GetMaxGDDRTemp());
 
@@ -374,7 +300,6 @@ int32_t Dm2CmSetBoardPowerLimit(const uint8_t *data, uint8_t size)
 	power_limit = MIN(power_limit,
 			  tt_bh_fwtable_get_fw_table(fwtable_dev)->chip_limits.board_power_limit);
 
-	SetThrottlerLimit(kThrottlerBoardPower, power_limit);
 	SetThrottlerLimit(kThrottlerDopplerSlow, power_limit);
 	SetThrottlerLimit(kThrottlerDopplerFast, power_limit);
 
