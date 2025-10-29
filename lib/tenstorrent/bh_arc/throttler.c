@@ -21,7 +21,6 @@
 
 static uint32_t power_limit;
 
-static bool doppler_fast = true;
 static bool doppler_slow = true;
 static bool thermal_throttling = true;
 
@@ -36,7 +35,6 @@ typedef enum {
 	kThrottlerThm,
 	kThrottlerGDDRThm,
 	kThrottlerDopplerSlow,
-	kThrottlerDopplerFast,
 	kThrottlerCount,
 } ThrottlerId;
 
@@ -52,7 +50,6 @@ static const ThrottlerLimitRange throttler_limit_ranges[kThrottlerCount] = {
 	[kThrottlerThm]		= { .min = 50, .max = 100, },
 	[kThrottlerGDDRThm]	= { .min = 50, .max = 100, },
 	[kThrottlerDopplerSlow]	= { .min = 50, .max = 1200, },
-	[kThrottlerDopplerFast]	= { .min = 50, .max = 1200, },
 };
 /* clang-format on */
 
@@ -102,16 +99,6 @@ static Throttler throttler[kThrottlerCount] = {
 					.alpha_filter = 1.0,
 					.p_gain = 0.0025,
 					.d_gain = 0.3,
-				},
-		},
-	[kThrottlerDopplerFast] =
-		{
-			.arb_max = kAiclkArbMaxDopplerFast,
-			.params =
-				{
-					.alpha_filter = 1.0,
-					.p_gain = 0.015,
-					.d_gain = 0.1,
 				},
 		},
 };
@@ -169,7 +156,6 @@ void InitThrottlers(void)
 			  tt_bh_fwtable_get_fw_table(fwtable_dev)->chip_limits.gddr_thm_limit);
 
 	SetThrottlerLimit(kThrottlerDopplerSlow, DEFAULT_BOARD_POWER_LIMIT);
-	SetThrottlerLimit(kThrottlerDopplerFast, DEFAULT_BOARD_POWER_LIMIT);
 
 	InitKernelThrottling();
 
@@ -177,7 +163,6 @@ void InitThrottlers(void)
 	EnableArbMax(throttler[kThrottlerGDDRThm].arb_max, thermal_throttling);
 
 	EnableArbMax(throttler[kThrottlerDopplerSlow].arb_max, doppler_slow);
-	EnableArbMax(throttler[kThrottlerDopplerFast].arb_max, doppler_fast);
 
 	SetAiclkArbMax(kAiclkArbMaxDopplerCritical, GetAiclkFmin());
 	EnableArbMax(kAiclkArbMaxDopplerCritical, false); /* enabled when limit triggered */
@@ -256,7 +241,6 @@ static void UpdateDoppler(const TelemetryInternalData *telemetry)
 	uint16_t current_power = GetInputPower();
 	uint16_t average_power = UpdateMovingAveragePower(current_power);
 
-	UpdateThrottler(kThrottlerDopplerFast, current_power);
 	UpdateThrottler(kThrottlerDopplerSlow, average_power);
 
 	/* AICLK=Fmin isn't always enough to get below the board power limit. */
@@ -311,7 +295,6 @@ int32_t Dm2CmSetBoardPowerLimit(const uint8_t *data, uint8_t size)
 			  tt_bh_fwtable_get_fw_table(fwtable_dev)->chip_limits.board_power_limit);
 
 	SetThrottlerLimit(kThrottlerDopplerSlow, power_limit);
-	SetThrottlerLimit(kThrottlerDopplerFast, power_limit);
 
 	UpdateTelemetryBoardPowerLimit(power_limit);
 
