@@ -22,6 +22,8 @@
 static uint32_t power_limit;
 
 static bool doppler_slow = true;
+static bool doppler_t2 = true;
+static bool doppler_t3 = true;
 static bool thermal_throttling = true;
 
 #define kThrottlerAiclkScaleFactor 500.0F
@@ -192,13 +194,15 @@ static void UpdateThrottlerArb(ThrottlerId id)
 static uint16_t board_power_history[1000];
 static uint16_t *board_power_history_cursor = board_power_history;
 static uint32_t board_power_sum = 0;
-static bool critical_throttling = false;
 static bool kernel_nops_enabled;
 
 static uint32_t samples_above_tdp;            /* 1 bit per sample, LSB is most recent */
 static const uint8_t overdrive_threshold = 8; /* 8 of 10 > TDP triggers overdrive */
 static const uint8_t overdrive_lookback = 10;
 static bool overdrive = false;
+
+static uint8_t t2_count;
+static uint8_t t3_count;
 
 #define ADVANCE_CIRCULAR_POINTER(pointer, array)                                                   \
 	do {                                                                                       \
@@ -243,6 +247,32 @@ static void UpdateDoppler(const TelemetryInternalData *telemetry)
 
 	UpdateThrottler(kThrottlerDopplerSlow, average_power);
 
+	/* Doppler T2 throttler: 2x power limit for 10 consecutive samples */
+	uint32_t t2_power_limit = power_limit * 2;
+
+	if (current_power > t2_power_limit) {
+		if (t2_count < UINT8_MAX) {
+			t2_count++;
+		}
+	} else {
+		t2_count = 0;
+	}
+
+	bool t2_triggered = t2_count >= 10 && doppler_t2;
+
+	/* Doppler T3 throttler: 2.5x power limit for 2 consecutive samples */
+	uint32_t t3_power_limit = power_limit * 5 / 2;
+
+	if (current_power > t3_power_limit) {
+		if (t3_count < UINT8_MAX) {
+			t3_count++;
+		}
+	} else {
+		t3_count = 0;
+	}
+
+	bool t3_triggered = t3_count >= 2 && doppler_t3;
+
 	/* AICLK=Fmin isn't always enough to get below the board power limit. */
 	bool start_nops = GetAiclkTarg() == GetAiclkFmin() && current_power > power_limit;
 	bool stop_nops = GetAiclkTarg() == GetAiclkFmax() && current_power < power_limit;
@@ -250,20 +280,17 @@ static void UpdateDoppler(const TelemetryInternalData *telemetry)
 	bool overdrive_temp_limit = (telemetry->asic_temperature > throttler[kThrottlerThm].limit)
 		&& thermal_throttling;
 
-	bool new_critical_throttling = overdrive_temp_limit;
+	bool critical_throttling = overdrive_temp_limit || t2_triggered || t3_triggered;
 
 	bool new_kernel_nops_enabled =
-		((kernel_nops_enabled || start_nops) && !stop_nops) || overdrive_temp_limit;
+		((kernel_nops_enabled || start_nops) && !stop_nops) || critical_throttling;
 
 	if (new_kernel_nops_enabled != kernel_nops_enabled) {
 		kernel_nops_enabled = new_kernel_nops_enabled;
 		SendKernelThrottlingMessage(kernel_nops_enabled);
 	}
 
-	if (new_critical_throttling != critical_throttling) {
-		critical_throttling = new_critical_throttling;
-		EnableArbMax(kAiclkArbMaxDopplerCritical, critical_throttling);
-	}
+	EnableArbMax(kAiclkArbMaxDopplerCritical, critical_throttling);
 }
 
 void CalculateThrottlers(void)
