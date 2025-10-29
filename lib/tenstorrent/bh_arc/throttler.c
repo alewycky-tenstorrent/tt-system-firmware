@@ -21,6 +21,10 @@
 
 static uint32_t power_limit;
 
+static bool doppler_fast = true;
+static bool doppler_slow = true;
+static bool thermal_throttling = true;
+
 #define kThrottlerAiclkScaleFactor 500.0F
 #define DEFAULT_BOARD_POWER_LIMIT  150
 
@@ -169,11 +173,11 @@ void InitThrottlers(void)
 
 	InitKernelThrottling();
 
-	EnableArbMax(throttler[kThrottlerThm].arb_max, true);
-	EnableArbMax(throttler[kThrottlerGDDRThm].arb_max, true);
+	EnableArbMax(throttler[kThrottlerThm].arb_max, thermal_throttling);
+	EnableArbMax(throttler[kThrottlerGDDRThm].arb_max, thermal_throttling);
 
-	EnableArbMax(throttler[kThrottlerDopplerSlow].arb_max, true);
-	EnableArbMax(throttler[kThrottlerDopplerFast].arb_max, true);
+	EnableArbMax(throttler[kThrottlerDopplerSlow].arb_max, doppler_slow);
+	EnableArbMax(throttler[kThrottlerDopplerFast].arb_max, doppler_fast);
 
 	SetAiclkArbMax(kAiclkArbMaxDopplerCritical, GetAiclkFmin());
 	EnableArbMax(kAiclkArbMaxDopplerCritical, false); /* enabled when limit triggered */
@@ -247,7 +251,7 @@ static void UpdateDopplerOverdrive(const TelemetryInternalData *telemetry)
 static void UpdateDoppler(const TelemetryInternalData *telemetry)
 {
 	UpdateDopplerOverdrive(telemetry);
-	EnableArbMax(throttler[kThrottlerThm].arb_max, !overdrive);
+	EnableArbMax(throttler[kThrottlerThm].arb_max, !overdrive && thermal_throttling);
 
 	uint16_t current_power = GetInputPower();
 	uint16_t average_power = UpdateMovingAveragePower(current_power);
@@ -259,7 +263,8 @@ static void UpdateDoppler(const TelemetryInternalData *telemetry)
 	bool start_nops = GetAiclkTarg() == GetAiclkFmin() && current_power > power_limit;
 	bool stop_nops = GetAiclkTarg() == GetAiclkFmax() && current_power < power_limit;
 
-	bool overdrive_temp_limit = (telemetry->asic_temperature > throttler[kThrottlerThm].limit);
+	bool overdrive_temp_limit = (telemetry->asic_temperature > throttler[kThrottlerThm].limit)
+		&& thermal_throttling;
 
 	bool new_critical_throttling = overdrive_temp_limit;
 
