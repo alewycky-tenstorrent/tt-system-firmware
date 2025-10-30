@@ -24,6 +24,7 @@ static uint32_t power_limit;
 static bool doppler_slow = true;
 static bool doppler_t2 = true;
 static bool doppler_t3 = true;
+static bool doppler_thermal = false;
 static bool thermal_throttling = true;
 
 #define kThrottlerAiclkScaleFactor 500.0F
@@ -231,7 +232,7 @@ static void UpdateDopplerOverdrive(const TelemetryInternalData *telemetry)
 	uint8_t recent_samples_above_tdp =
 		POPCOUNT(samples_above_tdp & BIT_MASK(overdrive_lookback));
 	if (recent_samples_above_tdp >= overdrive_threshold) {
-		overdrive = true;
+		overdrive = doppler_thermal;
 	} else if (recent_samples_above_tdp == 0) {
 		overdrive = false;
 	}
@@ -278,7 +279,7 @@ static void UpdateDoppler(const TelemetryInternalData *telemetry)
 	bool stop_nops = GetAiclkTarg() == GetAiclkFmax() && current_power < power_limit;
 
 	bool overdrive_temp_limit = (telemetry->asic_temperature > throttler[kThrottlerThm].limit)
-		&& thermal_throttling;
+		&& doppler_thermal && thermal_throttling;
 
 	bool critical_throttling = overdrive_temp_limit || t2_triggered || t3_triggered;
 
