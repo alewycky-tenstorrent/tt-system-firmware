@@ -25,6 +25,11 @@ RTIO_DEFINE(ts_avg_ctx, 1, 1);
 static uint8_t ts_avg_buf[sizeof(struct sensor_value)];
 #endif
 
+volatile uint64_t RTI_calls;
+volatile uint64_t RTI_stale;
+volatile uint32_t get_vcore_time;
+volatile uint32_t avs_time;
+
 /**
  * @brief Read telemetry values that are shared by multiple components
  *
@@ -36,9 +41,11 @@ static uint8_t ts_avg_buf[sizeof(struct sensor_value)];
  */
 void ReadTelemetryInternal(int64_t max_staleness, TelemetryInternalData *data)
 {
+	RTI_calls++;
 	int64_t reftime = last_update_time;
 
 	if (k_uptime_delta(&reftime) >= max_staleness) {
+		RTI_stale++;
 #ifdef CONFIG_DT_HAS_TENSTORRENT_BH_PVT_ENABLED
 		struct sensor_value avg_tmp;
 		const struct sensor_decoder_api *decoder;
@@ -52,8 +59,13 @@ void ReadTelemetryInternal(int64_t max_staleness, TelemetryInternalData *data)
 #endif
 
 		/* Get all dynamically updated values */
+		uint32_t t1 = sys_clock_cycle_get_32();
 		internal_data.vcore_voltage = get_vcore();
+		uint32_t t2 = sys_clock_cycle_get_32();
 		AVSReadCurrent(AVS_VCORE_RAIL, &internal_data.vcore_current);
+		uint32_t t3 = sys_clock_cycle_get_32();
+		get_vcore_time = t2 - t1;
+		avs_time = t3 - t2;
 		internal_data.vcore_power =
 			internal_data.vcore_current * internal_data.vcore_voltage * 0.001f;
 #ifdef CONFIG_DT_HAS_TENSTORRENT_BH_PVT_ENABLED
