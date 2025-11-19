@@ -15,6 +15,8 @@
 #include <zephyr/sys/util.h>
 #include <stdint.h>
 
+#include "status_reg.h"
+
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(clock_control_tt_bh);
 
@@ -500,6 +502,8 @@ static int clock_control_tt_bh_set_rate(const struct device *dev, clock_control_
 		union tt_bh_pll_cntl_5_reg pll_cntl_5;
 		union tt_bh_pll_use_postdiv_reg use_postdiv;
 
+		sys_write32((uint32_t)rate, RESET_UNIT_SCRATCH_RAM_REG_ADDR(59));
+
 		pll_cntl_1.val = clock_control_tt_bh_read_reg(config, PLL_CNTL_1_OFFSET);
 		pll_cntl_5.val = clock_control_tt_bh_read_reg(config, PLL_CNTL_5_OFFSET);
 		use_postdiv.val = clock_control_tt_bh_read_reg(config, PLL_USE_POSTDIV_OFFSET);
@@ -522,6 +526,15 @@ static int clock_control_tt_bh_set_rate(const struct device *dev, clock_control_
 
 		clock_control_tt_bh_update(config, data, &settings);
 		clock_control_enable_clk_counters(config);
+
+		if (config->inst == 0) {
+			uint32_t aiclk;
+
+			aiclk = clock_control_tt_bh_get_freq(config, 0);
+
+			sys_write32(aiclk, RESET_UNIT_SCRATCH_RAM_REG_ADDR(59));
+		}
+
 	} else {
 		k_spin_unlock(&data->lock, key);
 		return -ENOTSUP;
