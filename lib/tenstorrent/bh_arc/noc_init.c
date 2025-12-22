@@ -585,14 +585,153 @@ static struct NocTranslation ComputeNocTranslation(unsigned int pcie_instance,
 	return noc0;
 }
 
+/* Please see
+ * https://docs.google.com/spreadsheets/d/1tGG4UPfABXrd97Y3VPJS7CusDFlamcml9kEw1HEwrlM/edit?usp=sharing
+ * and also the python reference code.
+ */
+static struct NocTranslation ComputeNocTranslation_251222(unsigned int pcie_instance,
+						   uint16_t bad_tensix_cols, uint8_t bad_gddr,
+						   uint16_t skip_eth)
+{
+	struct NocTranslation noc0;
+
+	MakeIdentity(&noc0);
+
+	/* Block column translations on PCIE and ethernet rows. Column translations will only affect
+	 * the Tensix rows.
+	 */
+	noc0.translate_row_mask[0] |= BIT(0) | BIT(1);
+
+	/* Tensix
+	 * bad_tensix_cols is a bitmap of i as in tensix_with_l1[i][j].
+	 * We want to fill out the tensix NOC columns (1-7, 10-16) in increasing order, except
+	 * skipping the disabled columns which will be moved to the end.
+	 */
+
+	const unsigned int num_tensix_cols = ARRAY_SIZE(kTensixEthNoc0X);
+
+	/* Convert physical tensix column bits into NOC 0 X bits. */
+	unsigned int good_tensix_noc0_x = GENMASK(7, 1) | GENMASK(16, 10);
+
+	/* __ASSERT_NO_MSG(bad_tensix_cols <= 14);
+	 * bad_tensix_cols is driven externally so we must actually enforce this.
+	 */
+	bad_tensix_cols = MIN(bad_tensix_cols, 14);
+
+	for (unsigned int i = 0; i < num_tensix_cols; i++) {
+		if (bad_tensix_cols & BIT(i)) {
+			good_tensix_noc0_x &= ~BIT(kTensixEthNoc0X[i]);
+		}
+	}
+
+	/* __ASSERT_NO_MSG(POPCOUNT(good_tensix_noc0_x) <= 14));
+	 * true because good_tensix_noc0_x starts with 14 bits set and then we may clear some
+	 */
+
+	/* The assertions on bad_tensix_cols and good_tensix_noc0_x mean that we don't need to check fo
+	 * noc_x going out of range in the following loops.
+	 */
+
+	for (unsigned int noc_x = 0; good_tensix_noc0_x != 0; noc_x++) {
+		/* pop lowest bit, it's the next valid column */
+		unsigned int good_tensix_lsb = LSB_GET(good_tensix_noc0_x);
+
+		good_tensix_noc0_x &= ~good_tensix_lsb;
+		unsigned int next_good_tensix = LOG2(good_tensix_lsb);
+
+		noc0.translate_table_x[noc_x] = next_good_tensix;
+	}
+
+	for (unsigned int noc_x = 13; bad_tensix_cols != 0; noc_x--) {
+		unsigned int bad_tensix_lsb = LSB_GET(bad_tensix_cols);
+
+		bad_tensix_cols &= ~bad_tensix_lsb;
+		unsigned int next_bad_tensix = kTensixEthNoc0X[LOG2(bad_tensix_lsb)];
+
+		noc0.translate_table_x[noc_x] = next_bad_tensix;
+	}
+
+	ApplyLogicalCoords(&noc0, 1, 2, 16, 11, 0, 2, 13, 11);
+
+	/* GDDR */
+	if (bad_gddr >= 4) { /* includes all GDDR good */
+		/* Put columns in west/east order. If there's a bad GDDR, it's in east. */
+		noc0.translate_table_x[17] = 0; /* West */
+		noc0.translate_table_x[18] = 9; /* East */
+	} else {
+		/* Bad GDDR is in west. */
+		noc0.translate_table_x[17] = 9; /* East */
+		noc0.translate_table_x[18] = 0; /* West */
+	}
+
+	uint8_t gddr_y_order[] = {0, 1, 2, 3};
+
+	if (bad_gddr != NO_BAD_GDDR) {
+		/* Move bad_gddr to the end (highest Y). */
+		uint8_t bad_gddr_row = bad_gddr % 4;
+
+		memmove(gddr_y_order + bad_gddr_row, gddr_y_order + bad_gddr_row + 1,
+			ARRAY_SIZE(gddr_y_order) - bad_gddr_row - 1);
+		gddr_y_order[3] = bad_gddr % 4;
+	}
+
+	for (unsigned int gddr = 0; gddr < ARRAY_SIZE(gddr_y_order); gddr++) {
+		memcpy(&noc0.translate_table_y[12 + gddr * 3], kGddrY[gddr_y_order[gddr]], 3);
+	}
+
+	ApplyLogicalCoords(&noc0, 0, 0, 0, 11, 17, 12, 17, 23);
+	ApplyLogicalCoords(&noc0, 9, 0, 9, 11, 17, 12, 17, 23);
+
+	/* GDDR - additional alias without harvesting
+	 * West GDDR col 15 -> col 0
+	 * East GDDR col 16 -> col 9
+	 */
+	noc0.translate_table_x[15] = 0;
+	noc0.translate_table_x[16] = 9;
+
+	/* PCIE
+	 * 19-24 => 2-0 or 11-0, whichever is in use as the endpoint.
+	 */
+	unsigned int pcie_x = pcie_instance ? 11 : 2;
+
+	noc0.translate_table_x[19] = pcie_x;
+	noc0.translate_table_y[24] = 0;
+
+	ApplyLogicalCoords(&noc0, pcie_x, 0, pcie_x, 0, 19, 24, 19, 24);
+
+	/* Ethernet
+	 * 20-25..31-25 => X-1 where X is rearranged to give a predictable mapping from NOC
+	 * coordinate to SERDES.
+	 */
+	noc0.translate_table_y[25] = 1;
+	CopyBytesSkipIndices(noc0.translate_table_x + 20, kTensixEthNoc0X, 12, skip_eth);
+	ApplyLogicalCoords(&noc0, 1, 1, 7, 1, 20, 25, 31, 25);
+	ApplyLogicalCoords(&noc0, 10, 1, 16, 1, 20, 25, 31, 25);
+
+	/* Service column (L2CPU and Security)
+	 * ARC is not included here because Y=0 is in a translation-blocked row.
+	 */
+	noc0.translate_table_x[14] = 8;
+	ApplyLogicalCoords(&noc0, 8, 2, 8, 11, 14, 2, 14, 11);
+
+	return noc0;
+}
+
+static const bool new_translation = false;
+
 /* This function assumes that NOC translation is disabled (or identity on 17x12) for the ARC node
  * when called.
  */
 void InitNocTranslation(unsigned int pcie_instance, uint16_t bad_tensix_cols, uint8_t bad_gddr,
 			uint16_t skip_eth)
 {
-	struct NocTranslation noc0 =
-		ComputeNocTranslation(pcie_instance, bad_tensix_cols, bad_gddr, skip_eth);
+	struct NocTranslation noc0;
+
+	if (new_translation) {
+		noc0 = ComputeNocTranslation_251222(pcie_instance, bad_tensix_cols, bad_gddr, skip_eth);
+	} else {
+		noc0 = ComputeNocTranslation(pcie_instance, bad_tensix_cols, bad_gddr, skip_eth);
+	}
 	ProgramNocTranslation(&noc0, 0);
 
 	struct NocTranslation noc1;
