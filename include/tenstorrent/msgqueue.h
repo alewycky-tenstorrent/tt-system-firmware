@@ -369,6 +369,26 @@ struct asic_state_rqst {
 	uint8_t command_code;
 };
 
+/** @brief Host request to modify throttler parameters
+ * @details Requests of this type are processed by @ref ModifyThrottlerHandler
+ */
+struct modify_throttler_rqst {
+	/** @brief The command code corresponding TT_SMC_MSG_MODIFY_THROTTLER */
+	uint8_t command_code;
+	/** @brief Throttler index, from enum ThrottlerId */
+	uint8_t throttler_id;
+	uint8_t pad[2];
+
+	/** @brief Proportional gain */
+	float p_gain;
+	/** @brief Derivative gain */
+	float d_gain;
+	/** @brief Alpha factor */
+	float alpha_factor;
+	/** @brief Throttler trigger point */
+	float limit;
+};
+
 /** @brief A tenstorrent host request*/
 union request {
 	/** @brief The interpretation of the request as an array of uint32_t entries*/
@@ -429,6 +449,9 @@ union request {
 
 	/** @brief A GDDR reset request */
 	struct gddr_reset_rqst gddr_reset;
+
+	/** @brief A throttler parameter modification request */
+	struct modify_throttler_rqst modify_throttler;
 };
 
 /** @} */

@@ -16,6 +16,8 @@
 #include "telemetry.h"
 #include "noc2axi.h"
 #include "tensix_state_msg.h"
+#include <tenstorrent/msgqueue.h>
+#include <tenstorrent/smc_msg.h>
 
 static uint32_t power_limit;
 
@@ -71,7 +73,7 @@ typedef struct {
 typedef struct {
 	const enum aiclk_arb_max arb_max; /* The arbiter associated with this throttler */
 
-	const ThrottlerParams params;
+	ThrottlerParams params;
 	float limit;
 	float value;
 	float error;
@@ -378,3 +380,22 @@ int32_t Dm2CmSetBoardPowerLimit(const uint8_t *data, uint8_t size)
 
 	return 0;
 }
+
+static uint8_t ModifyThrottlerHandler(const union request *request, struct response *response)
+{
+	const struct modify_throttler_rqst *r = &request->modify_throttler;
+
+	uint8_t id = r->throttler_id;
+	if (id >= kThrottlerCount) {
+		return 0xFF;
+	}
+
+	throttler[id].params.p_gain = r->p_gain;
+	throttler[id].params.d_gain = r->d_gain;
+	throttler[id].params.alpha_filter = r->alpha_factor;
+	throttler[id].limit = r->limit; /* bypass limit range clamping in SetThrottlerLimit */
+
+	return 0;
+}
+
+REGISTER_MESSAGE(TT_SMC_MSG_MODIFY_THROTTLER, ModifyThrottlerHandler);
