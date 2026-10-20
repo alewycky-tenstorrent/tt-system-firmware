@@ -98,9 +98,11 @@
 	};
 
 	flash_w25q: w25q@0 {
-		compatible = "jedec,mspi-nor";
+		compatible = "winbond,w25q51rw", "jedec,mspi-nor";
 		TT_SPI_FLASH_COMMON
-		jedec-id = [ef 60 20]; /* Winbond W25Q51RW-Q/-N, W25Q512NW-IQ/IN */
+		jedec-id = [ef 60 20]; /* Winbond W25Q51RW-Q/-N */
+		/* Improve BH Galaxy IO0 signal integrity. */
+		winbond,output-driver-ohms = <25>;
 		mspi-io-mode = "MSPI_IO_MODE_QUAD_1_4_4";
 		/* QE is non-volatile and factory-set on the supported
 		 * variants; the driver repairs a part that arrives with it
