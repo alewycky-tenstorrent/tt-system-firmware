@@ -171,12 +171,10 @@ static const PLLSettings kPLLInitialSettings[PLL_COUNT] = {
 	/* PLL0 - AICLK */
 	{.pll_cntl_1 = {.f.refdiv = 2,
 			.f.postdiv = 0,
-			.f.fbdiv = 128},      /* 3200 MHz. Use VCO >= 2650 MHz:
-					       * https://tenstorrent.atlassian.net/browse/SYS-777
-					       */
+			.f.fbdiv = 64},       /* 1600 MHz */
 	 .pll_cntl_2 = {.f.ctrl_bus1 = 0x18}, /* FOUT4PHASEEN, FOUTPOSTDIVEN bits asserted */
 	 .pll_cntl_3 = {.f.ctrl_bus5 = 1},
-	 .pll_cntl_5 = {.f.postdiv0 = 3,  /* = AICLK - 800 MHz */
+	 .pll_cntl_5 = {.f.postdiv0 = 1,  /* = AICLK - 800 MHz */
 			.f.postdiv1 = 0,  /* Disabled */
 			.f.postdiv2 = 0,  /* Disabled */
 			.f.postdiv3 = 0}, /* Disabled */
